@@ -1,0 +1,35 @@
+scenario_id: customer_support_v1
+eval_type: realtime
+agent_name: gemini_realtime
+stt_provider: groq
+tts_provider: groq
+
+realtime_prompt: |
+  You are a calm, helpful customer support agent for a VoIP service.
+  Diagnose issues, ask clarifying questions, and offer clear next steps.
+  Keep spoken answers short.
+
+testing_prompt: |
+  Score the support agent's latest response on:
+  intent_alignment, questions_asked, tone, context_retention (each 1-5).
+  Return JSON only:
+  {"intent_alignment":N,"questions_asked":N,"tone":N,"context_retention":N,"reasoning":"<brief>"}
+
+test_variations:
+  - name: outage
+    persona: Customer experiencing call drops
+    test_script:
+      - prompt: "My calls keep dropping every few minutes."
+        intent: report_outage
+      - prompt: "It started this morning after I restarted the router."
+        intent: provide_context
+      - prompt: "Can you escalate this?"
+        intent: request_escalation
+
+  - name: billing
+    persona: Confused about invoice
+    test_script:
+      - prompt: "Why was I charged twice this month?"
+        intent: billing_dispute
+      - prompt: "I only signed up for the basic plan."
+        intent: plan_clarification

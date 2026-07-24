@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Eval Results</title>
+  <style>
+    :root {
+      --bg: #0f1419; --panel: #1a2332; --border: #2d3a4d; --text: #e7ecf3;
+      --muted: #8b9bb4; --accent: #3d9cf0; --ok: #3ecf8e;
+      --mono: "IBM Plex Mono", Consolas, monospace;
+      --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+      --c-connection: #5b8def;
+      --c-latency: #c084fc;
+      --c-agent: #3ecf8e;
+      --c-user: #f0b429;
+      --c-human: #8b9bb4;
+      --c-system: #38bdf8;
+      --c-error: #f07178;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: var(--sans); color: var(--text);
+      background:
+        radial-gradient(1000px 500px at 0% 0%, #1c3a5a 0%, transparent 50%),
+        var(--bg);
+      min-height: 100vh;
+    }
+    header {
+      padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+    }
+    h1 { margin: 0; font-size: 1.25rem; }
+    a { color: var(--accent); text-decoration: none; }
+    a.btn, button {
+      display: inline-block; background: #121a26; color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.4rem 0.75rem; font: inherit; font-size: 0.85rem; cursor: pointer;
+    }
+    a.btn:hover, button:hover { border-color: var(--accent); }
+    button.danger { border-color: #8a3a42; color: #f07178; }
+    button.danger:hover { border-color: #f07178; background: rgba(240,113,120,.08); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    main {
+      display: grid; grid-template-columns: 300px 1fr; gap: 1rem;
+      padding: 1rem 1.5rem 2rem;
+    }
+    @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+    section {
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      border: 1px solid var(--border); border-radius: 10px; padding: 1rem;
+    }
+    h2 {
+      margin: 0 0 0.75rem; font-size: 0.8rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .eval-list { list-style: none; margin: 0; padding: 0; max-height: 75vh; overflow: auto; }
+    .eval-list li {
+      border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.75rem;
+      margin-bottom: 0.5rem; cursor: pointer;
+    }
+    .eval-list li:hover { border-color: var(--accent); }
+    .eval-list li.active { border-color: var(--ok); background: rgba(62,207,142,.08); }
+    .eval-list .meta { color: var(--muted); font-size: 0.75rem; margin-top: 0.25rem; font-family: var(--mono); }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem; }
+    @media (max-width: 700px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+    .metric { background: #121a26; border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem; }
+    .metric .label { font-size: 0.7rem; color: var(--muted); }
+    .metric .value { font-family: var(--mono); font-size: 1.15rem; color: var(--accent); margin-top: 0.15rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th, td { border-bottom: 1px solid var(--border); padding: 0.5rem 0.35rem; text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; }
+    tr:hover { background: rgba(61,156,240,0.06); cursor: pointer; }
+    tr.selected { background: rgba(61,156,240,0.12); }
+    .detail {
+      margin-top: 1rem; padding: 0.75rem; border: 1px solid var(--border);
+      border-radius: 8px; background: #0c1118; font-family: var(--mono); font-size: 0.78rem;
+      white-space: pre-wrap; color: var(--muted);
+    }
+    .empty { color: var(--muted); font-size: 0.9rem; }
+    .toolbar { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; align-items: center; }
+    .toolbar #runTitle { flex: 1; min-width: 180px; }
+    .playbar {
+      display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+      margin: 0 0 0.85rem; padding: 0.65rem 0.75rem;
+      background: #0c1118; border: 1px solid var(--border); border-radius: 8px;
+    }
+    .playbar button.play {
+      min-width: 7.5rem; font-weight: 600;
+      border-color: var(--ok); color: var(--ok);
+    }
+    .playbar button.play.playing { border-color: var(--accent); color: var(--accent); }
+    .playbar .time { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+    .playbar .scrub {
+      flex: 1; min-width: 140px; accent-color: var(--accent); height: 4px;
+    }
+    .playbar .hint { font-size: 0.72rem; color: var(--muted); width: 100%; }
+
+    /* Timeline */
+    .tl-meta {
+      display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;
+      margin-bottom: 0.75rem; font-size: 0.78rem; color: var(--muted);
+    }
+    .tl-badge {
+      display: inline-block; border: 1px solid var(--border); border-radius: 999px;
+      padding: 0.15rem 0.55rem; font-family: var(--mono); font-size: 0.72rem;
+    }
+    .tl-legend {
+      display: flex; flex-wrap: wrap; gap: 0.55rem 0.9rem;
+      margin-bottom: 0.85rem; font-size: 0.75rem; color: var(--muted);
+    }
+    .tl-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .tl-swatch {
+      width: 10px; height: 10px; border-radius: 2px; display: inline-block;
+    }
+    .tl-rail-wrap {
+      position: relative; background: #0c1118; border: 1px solid var(--border);
+      border-radius: 8px; padding: 1.1rem 0.75rem 1.4rem; overflow-x: auto;
+      margin-bottom: 1rem;
+    }
+    .tl-playhead {
+      position: absolute; top: 0.85rem; bottom: 0.55rem; width: 2px;
+      background: #fff; opacity: 0.85; pointer-events: none; display: none;
+      box-shadow: 0 0 8px rgba(255,255,255,0.35); z-index: 5;
+    }
+    .tl-axis {
+      position: relative; height: 14px; margin-bottom: 0.55rem;
+      border-bottom: 1px solid var(--border); font-family: var(--mono);
+      font-size: 0.65rem; color: var(--muted);
+    }
+    .tl-axis mark {
+      position: absolute; transform: translateX(-50%); top: 0; white-space: nowrap;
+    }
+    .tl-lanes { display: grid; gap: 0.45rem; min-width: 640px; }
+    .tl-lane {
+      display: grid; grid-template-columns: 110px 1fr; gap: 0.5rem; align-items: center;
+      min-height: 28px;
+    }
+    .tl-lane-label {
+      font-size: 0.72rem; color: var(--muted); text-align: right; padding-right: 0.25rem;
+    }
+    .tl-track {
+      position: relative; height: 22px; background: rgba(255,255,255,0.03);
+      border-radius: 4px; overflow: hidden;
+    }
+    .tl-seg {
+      position: absolute; top: 2px; bottom: 2px; border-radius: 3px;
+      opacity: 0.92; cursor: pointer; min-width: 2px;
+      transition: filter 0.12s ease, opacity 0.12s ease;
+    }
+    .tl-seg:hover, .tl-seg.active { filter: brightness(1.2); opacity: 1; outline: 1px solid #fff3; }
+    .tl-seg.point {
+      width: 8px !important; border-radius: 50%; top: 5px; bottom: 5px;
+      box-shadow: 0 0 0 2px rgba(0,0,0,.35);
+    }
+    .tl-list {
+      list-style: none; margin: 0; padding: 0; max-height: 340px; overflow: auto;
+      border: 1px solid var(--border); border-radius: 8px; background: #0c1118;
+    }
+    .tl-list li {
+      display: grid; grid-template-columns: 72px 14px 1fr; gap: 0.55rem;
+      padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border);
+      cursor: pointer; font-size: 0.8rem;
+    }
+    .tl-list li:last-child { border-bottom: none; }
+    .tl-list li:hover, .tl-list li.active { background: rgba(61,156,240,0.08); }
+    .tl-list .t { font-family: var(--mono); color: var(--muted); font-size: 0.72rem; }
+    .tl-list .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 0.3rem; }
+    .tl-list .title { font-weight: 500; }
+    .tl-list .sub { color: var(--muted); font-size: 0.72rem; margin-top: 0.15rem; font-family: var(--mono); }
+    .detail-panel {
+      margin-top: 0.75rem; padding: 0.75rem; border: 1px solid var(--border);
+      border-radius: 8px; background: #121a26; min-height: 72px; font-size: 0.82rem;
+    }
+    .detail-panel .k { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .stack { display: grid; gap: 1rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Saved evaluation results</h1>
+      <div style="color:var(--muted);font-size:0.85rem">Session life timeline · turns · audio</div>
+    </div>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+      <a class="btn" href="/">← Live checkpoints</a>
+      <a class="btn" href="/api/export.csv">Export CSV</a>
+      <button type="button" id="refreshBtn">Refresh</button>
+    </div>
+  </header>
+  <main>
+    <section>
+      <h2>Evaluations</h2>
+      <ul class="eval-list" id="evalList"></ul>
+      <p class="empty" id="emptyEvals" style="display:none">No saved runs yet. Finish a live call (approve turns) or run <code>python main.py run …</code>.</p>
+    </section>
+    <div class="stack">
+      <section>
+        <h2>Session life</h2>
+        <div class="toolbar">
+          <span id="runTitle" class="empty">Select a run</span>
+          <button type="button" class="danger" id="deleteEvalBtn" disabled>Delete evaluation</button>
+        </div>
+        <div class="metrics">
+          <div class="metric"><div class="label">Avg TTF (ms)</div><div class="value" id="mTtf">—</div></div>
+          <div class="metric"><div class="label">Avg FTL (ms)</div><div class="value" id="mFtl">—</div></div>
+          <div class="metric"><div class="label">Session span</div><div class="value" id="mSpan">—</div></div>
+          <div class="metric"><div class="label">Turns</div><div class="value" id="mTurns">—</div></div>
+        </div>
+
+        <div class="tl-meta">
+          <span>Timeline source: <span class="tl-badge" id="tlSource">—</span></span>
+          <span id="tlHint">Select an evaluation to inspect the session life.</span>
+        </div>
+        <div class="playbar">
+          <button type="button" class="play" id="btnPlaySession" disabled>Play session</button>
+          <input type="range" class="scrub" id="sessionScrub" min="0" max="1000" value="0" disabled />
+          <span class="time" id="sessionTime">0:00 / 0:00</span>
+          <audio id="sessionAudio" preload="metadata"></audio>
+          <div class="hint" id="sessionAudioHint">Merged agent + our audio on one track (silence = waits / checkpoints).</div>
+        </div>
+        <div class="tl-legend" id="tlLegend"></div>
+        <div class="tl-rail-wrap" id="tlRailWrap">
+          <div class="tl-playhead" id="tlPlayhead"></div>
+          <div class="tl-axis" id="tlAxis"></div>
+          <div class="tl-lanes" id="tlLanes"></div>
+        </div>
+        <ul class="tl-list" id="tlList"></ul>
+        <div class="detail-panel" id="tlDetail">
+          <div class="k">Selected event</div>
+          <div id="tlDetailBody" class="empty" style="margin-top:0.35rem">Click a segment or list row.</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Turns</h2>
+        <div style="overflow:auto;max-height:280px">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Intent</th>
+                <th>TTF</th>
+                <th>FTL</th>
+                <th>Score</th>
+                <th>User / test</th>
+                <th>Agent transcript</th>
+              </tr>
+            </thead>
+            <tbody id="turnsBody"></tbody>
+          </table>
+        </div>
+        <div class="detail" id="detailBox">Click a turn to inspect scores and text. Use Play session above for full audio.</div>
+      </section>
+    </div>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let selectedEval = null;
+    let selectedTurnId = null;
+    let turnsCache = [];
+    let timelineCache = null;
+    let selectedEventIdx = null;
+    let scrubbing = false;
+
+    const LANE_ORDER = [
+      ["latency", "Agent wait (TTF/FTL)"],
+      ["user", "Caller audio"],
+      ["agent", "Agent audio"],
+    ];
+
+    function fmt(n) {
+      if (n === null || n === undefined || Number.isNaN(n)) return "—";
+      return Number(n).toFixed(1);
+    }
+
+    function fmtMs(ms) {
+      if (ms == null || Number.isNaN(ms)) return "—";
+      const n = Number(ms);
+      if (n < 1000) return `${n.toFixed(0)} ms`;
+      if (n < 60000) return `${(n / 1000).toFixed(2)} s`;
+      const m = Math.floor(n / 60000);
+      const s = ((n % 60000) / 1000).toFixed(1);
+      return `${m}m ${s}s`;
+    }
+
+    function qsEval() {
+      const u = new URL(location.href);
+      const v = u.searchParams.get("eval");
+      return v ? Number(v) : null;
+    }
+
+    function fmtClock(sec) {
+      if (!Number.isFinite(sec) || sec < 0) sec = 0;
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${String(s).padStart(2, "0")}`;
+    }
+
+    function stopSessionAudio() {
+      const a = $("sessionAudio");
+      a.pause();
+      a.removeAttribute("src");
+      a.load();
+      $("btnPlaySession").textContent = "Play session";
+      $("btnPlaySession").classList.remove("playing");
+      $("btnPlaySession").disabled = true;
+      $("sessionScrub").disabled = true;
+      $("sessionScrub").value = "0";
+      $("sessionTime").textContent = "0:00 / 0:00";
+      $("tlPlayhead").style.display = "none";
+      $("sessionAudioHint").textContent =
+        "Merged agent + caller audio in conversation order.";
+    }
+
+    function bindSessionAudio(evalId) {
+      stopSessionAudio();
+      const a = $("sessionAudio");
+      // refresh=1 rebuilds mix (picks up Gradio user clips with corrected mapping)
+      const url = `/api/evaluations/${evalId}/session-audio?refresh=1&t=${Date.now()}`;
+      a.preload = "auto";
+      a.src = url;
+      $("btnPlaySession").disabled = false;
+      $("sessionScrub").disabled = false;
+      $("sessionAudioHint").textContent = "Loading merged session audio…";
+
+      a.onloadedmetadata = () => {
+        const seekable = a.seekable && a.seekable.length > 0;
+        $("sessionTime").textContent = `0:00 / ${fmtClock(a.duration)}`;
+        $("sessionAudioHint").textContent = seekable
+          ? "Merged agent + our audio. Drag scrubber or click the timeline rail to seek."
+          : "Audio loaded — if scrubbing fails, hard-refresh; server now serves range-seekable files.";
+        updatePlayhead();
+      };
+      a.oncanplay = () => updatePlayhead();
+      a.onerror = () => {
+        $("btnPlaySession").disabled = true;
+        $("sessionScrub").disabled = true;
+        $("sessionAudioHint").textContent =
+          "No mergeable audio for this run (missing WAV clips).";
+      };
+      a.ontimeupdate = () => updatePlayhead();
+      a.onseeked = () => updatePlayhead();
+      a.onplay = () => {
+        $("btnPlaySession").textContent = "Pause";
+        $("btnPlaySession").classList.add("playing");
+      };
+      a.onpause = () => {
+        $("btnPlaySession").textContent = "Play session";
+        $("btnPlaySession").classList.remove("playing");
+      };
+      a.onended = () => {
+        $("btnPlaySession").textContent = "Play session";
+        $("btnPlaySession").classList.remove("playing");
+        updatePlayhead();
+      };
+    }
+
+    function audioDurationSec() {
+      const a = $("sessionAudio");
+      const d = a.duration;
+      if (Number.isFinite(d) && d > 0) return d;
+      // Fall back to timeline span when metadata is still loading
+      if (timelineCache && timelineCache.total_ms) {
+        return Number(timelineCache.total_ms) / 1000;
+      }
+      return 0;
+    }
+
+    function seekSessionToFraction(frac) {
+      const a = $("sessionAudio");
+      const dur = audioDurationSec();
+      if (!dur || !a.src) return;
+      const t = Math.min(Math.max(frac, 0), 1) * dur;
+      try {
+        if (typeof a.fastSeek === "function") a.fastSeek(t);
+        else a.currentTime = t;
+      } catch (_) {
+        try { a.currentTime = t; } catch (__) { /* ignore */ }
+      }
+      updatePlayhead();
+    }
+
+    function updatePlayhead() {
+      const a = $("sessionAudio");
+      const dur = audioDurationSec();
+      const cur = a.currentTime || 0;
+      if (!scrubbing && dur > 0) {
+        $("sessionScrub").value = String(Math.round((cur / dur) * 1000));
+      }
+      $("sessionTime").textContent = `${fmtClock(cur)} / ${fmtClock(dur)}`;
+
+      const totalMs = timelineCache
+        ? Math.max(Number(timelineCache.total_ms) || 0, dur * 1000)
+        : dur * 1000;
+      const head = $("tlPlayhead");
+      const trackHost = $("tlLanes");
+      if (!totalMs || !trackHost) {
+        head.style.display = "none";
+        return;
+      }
+      const tMs = cur * 1000;
+      const pct = Math.min(100, Math.max(0, (tMs / totalMs) * 100));
+      // Playhead spans the track column (after lane labels)
+      const firstTrack = trackHost.querySelector(".tl-track");
+      if (!firstTrack) {
+        head.style.display = "none";
+        return;
+      }
+      const wrap = $("tlRailWrap");
+      const wrapRect = wrap.getBoundingClientRect();
+      const trackRect = firstTrack.getBoundingClientRect();
+      const x = trackRect.left - wrapRect.left + wrap.scrollLeft + (pct / 100) * trackRect.width;
+      head.style.display = "block";
+      head.style.left = `${x}px`;
+    }
+
+    function clearTimeline() {
+      timelineCache = null;
+      selectedEventIdx = null;
+      $("tlSource").textContent = "—";
+      $("tlHint").textContent = "Select an evaluation to inspect the session life.";
+      $("tlLegend").innerHTML = "";
+      $("tlAxis").innerHTML = "";
+      $("tlLanes").innerHTML = "";
+      $("tlList").innerHTML = "";
+      $("tlDetailBody").textContent = "Click a segment or list row.";
+      $("tlDetailBody").className = "empty";
+      $("mSpan").textContent = "—";
+      stopSessionAudio();
+    }
+
+    function renderTimeline(tl) {
+      timelineCache = tl;
+      selectedEventIdx = null;
+      const groups = tl.groups || {};
+      $("tlSource").textContent = "caller ↔ TTF/FTL ↔ agent";
+      $("tlHint").textContent =
+        "Purple = agent wait to first token (TTF once, then FTL). No judge/STT/TTS-gen/approval time. Click a lane to seek.";
+      $("mSpan").textContent = fmtMs(tl.total_ms);
+
+      $("tlLegend").innerHTML = LANE_ORDER.map(([key, label]) => {
+        const color = (groups[key] && groups[key].color) || "#8b9bb4";
+        return `<span><i class="tl-swatch" style="background:${color}"></i>${label}</span>`;
+      }).join("");
+
+      const total = Math.max(Number(tl.total_ms) || 1, 1);
+      const ticks = 6;
+      $("tlAxis").innerHTML = "";
+      for (let i = 0; i <= ticks; i++) {
+        const t = (total * i) / ticks;
+        const mark = document.createElement("mark");
+        mark.style.left = `${(i / ticks) * 100}%`;
+        mark.textContent = fmtMs(t);
+        $("tlAxis").appendChild(mark);
+      }
+
+      const events = tl.events || [];
+      const byGroup = Object.fromEntries(LANE_ORDER.map(([k]) => [k, []]));
+      events.forEach((e, idx) => {
+        const g = byGroup[e.group] ? e.group : "system";
+        byGroup[g].push({ ...e, _idx: idx });
+      });
+
+      const lanes = $("tlLanes");
+      lanes.innerHTML = "";
+      for (const [key, label] of LANE_ORDER) {
+        const items = byGroup[key] || [];
+        if (!items.length && key === "error") continue;
+        const row = document.createElement("div");
+        row.className = "tl-lane";
+        const track = document.createElement("div");
+        track.className = "tl-track";
+        for (const e of items) {
+          const seg = document.createElement("div");
+          const dur = Number(e.duration_ms) || 0;
+          const left = (Number(e.t_ms) / total) * 100;
+          const width = dur > 0 ? Math.max((dur / total) * 100, 0.35) : 0;
+          seg.className = "tl-seg" + (dur > 0 ? "" : " point");
+          seg.dataset.idx = String(e._idx);
+          seg.style.left = `${left}%`;
+          if (dur > 0) seg.style.width = `${width}%`;
+          seg.style.background = e.color || "#8b9bb4";
+          seg.title = `${e.label} @ ${fmtMs(e.t_ms)}${dur ? ` · ${fmtMs(dur)}` : ""}`;
+          seg.onclick = (ev) => {
+            ev.stopPropagation();
+            selectTimelineEvent(e._idx);
+          };
+          track.appendChild(seg);
+        }
+        row.innerHTML = `<div class="tl-lane-label">${label}</div>`;
+        row.appendChild(track);
+        lanes.appendChild(row);
+      }
+
+      const list = $("tlList");
+      list.innerHTML = "";
+      events.forEach((e, idx) => {
+        const li = document.createElement("li");
+        li.dataset.idx = String(idx);
+        const dur = Number(e.duration_ms) || 0;
+        li.innerHTML = `
+          <div class="t">${fmtMs(e.t_ms)}</div>
+          <div class="dot" style="background:${e.color || "#8b9bb4"}"></div>
+          <div>
+            <div class="title">${escapeHtml(e.label || e.event_type)}</div>
+            <div class="sub">${e.group}${e.turn_number != null ? ` · turn ${e.turn_number}` : ""}${dur ? ` · span ${fmtMs(dur)}` : ""}${e.detail ? ` · ${escapeHtml(String(e.detail).slice(0, 90))}` : ""}</div>
+          </div>`;
+        li.onclick = () => selectTimelineEvent(idx);
+        list.appendChild(li);
+      });
+      if (!events.length) {
+        list.innerHTML = `<li><div class="t">—</div><div></div><div class="empty">No timeline events.</div></li>`;
+      }
+    }
+
+    function selectTimelineEvent(idx) {
+      selectedEventIdx = idx;
+      const e = timelineCache && timelineCache.events[idx];
+      if (!e) return;
+      [...$("tlList").children].forEach((li) => {
+        li.classList.toggle("active", Number(li.dataset.idx) === idx);
+      });
+      $("tlLanes").querySelectorAll(".tl-seg").forEach((seg) => {
+        seg.classList.toggle("active", Number(seg.dataset.idx) === idx);
+      });
+
+      $("tlDetailBody").className = "";
+      const dur = Number(e.duration_ms) || 0;
+      $("tlDetailBody").innerHTML = `
+        <strong style="color:${e.color}">${escapeHtml(e.label)}</strong><br/>
+        <span style="color:var(--muted);font-family:var(--mono);font-size:0.75rem">
+          ${escapeHtml(e.event_type)} · ${escapeHtml(e.group)}
+          ${e.turn_number != null ? ` · turn ${e.turn_number}` : ""}
+        </span><br/><br/>
+        Start: <code>${fmtMs(e.t_ms)}</code>
+        ${dur ? ` · Duration: <code>${fmtMs(dur)}</code> · Ends: <code>${fmtMs(Number(e.t_ms) + dur)}</code>` : " · marker"}
+        ${e.detail ? `<br/><br/>${escapeHtml(e.detail)}` : ""}`;
+
+      if (e.turn_number != null) {
+        const turn = turnsCache.find((t) => Number(t.turn_number) === Number(e.turn_number));
+        if (turn) selectTurn(turn, false);
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    async function loadEvaluations() {
+      const rows = await (await fetch("/api/evaluations?limit=200")).json();
+      const list = $("evalList");
+      list.innerHTML = "";
+      $("emptyEvals").style.display = rows.length ? "none" : "block";
+      const prefer = qsEval() || selectedEval;
+      for (const r of rows) {
+        const li = document.createElement("li");
+        li.dataset.id = r.id;
+        if (prefer && Number(prefer) === r.id) li.classList.add("active");
+        li.innerHTML = `<strong>#${r.id}</strong> [${r.eval_type || "realtime"}] ${r.provider_name || r.agent_name}
+          <div class="meta">${r.scenario_id} / ${r.variation_name || "—"} · ${r.run_timestamp || ""}
+          · TTF ${fmt(r.avg_ttf_ms)} · FTL ${fmt(r.avg_ftl_ms)}</div>`;
+        li.onclick = () => selectEval(r.id);
+        list.appendChild(li);
+      }
+      if (prefer && rows.some((r) => r.id === Number(prefer))) {
+        await selectEval(Number(prefer));
+      } else if (rows.length) {
+        await selectEval(rows[0].id);
+      } else {
+        selectedEval = null;
+        $("deleteEvalBtn").disabled = true;
+        clearTimeline();
+      }
+    }
+
+    async function selectEval(id) {
+      selectedEval = id;
+      selectedTurnId = null;
+      $("deleteEvalBtn").disabled = !id;
+      [...$("evalList").children].forEach((li) => {
+        li.classList.toggle("active", Number(li.dataset.id) === id);
+      });
+      const u = new URL(location.href);
+      u.searchParams.set("eval", String(id));
+      history.replaceState({}, "", u);
+
+      const ev = await (await fetch(`/api/evaluations/${id}`)).json();
+      $("runTitle").textContent =
+        `#${ev.id} · ${ev.eval_type || "realtime"} · ${ev.agent_name} · ${ev.scenario_id}/${ev.variation_name || ""}`;
+      $("mTtf").textContent = fmt(ev.avg_ttf_ms);
+      $("mFtl").textContent = fmt(ev.avg_ftl_ms);
+      $("mTurns").textContent = ev.total_turns ?? "—";
+
+      const tl = await (await fetch(`/api/evaluations/${id}/timeline`)).json();
+      renderTimeline(tl);
+      bindSessionAudio(id);
+
+      turnsCache = await (await fetch(`/api/evaluations/${id}/turns`)).json();
+      const body = $("turnsBody");
+      body.innerHTML = "";
+      for (const t of turnsCache) {
+        const tr = document.createElement("tr");
+        tr.dataset.turnId = t.id;
+        tr.innerHTML = `
+          <td>${t.turn_number}</td>
+          <td>${t.user_intent || ""}</td>
+          <td>${fmt(t.ttf_ms)}</td>
+          <td>${fmt(t.ftl_ms)}</td>
+          <td>${fmt(t.avg_score)}</td>
+          <td>${(t.test_prompt || "").slice(0, 48)}</td>
+          <td>${(t.agent_transcript || "").slice(0, 64)}</td>`;
+        tr.onclick = () => selectTurn(t);
+        body.appendChild(tr);
+      }
+      if (turnsCache.length) selectTurn(turnsCache[0], false);
+      else {
+        $("detailBox").textContent = "No turns stored for this run.";
+      }
+    }
+
+    function selectTurn(t, scrollTimeline = true) {
+      selectedTurnId = t.id;
+      [...$("turnsBody").querySelectorAll("tr")].forEach((tr) => {
+        tr.classList.toggle("selected", Number(tr.dataset.turnId) === t.id);
+      });
+      $("detailBox").textContent =
+        `TURN ${t.turn_number}\n` +
+        `Intent: ${t.user_intent || ""}\n` +
+        `TTF=${fmt(t.ttf_ms)} ms   FTL=${fmt(t.ftl_ms)} ms\n\n` +
+        `USER/TEST: ${t.test_prompt || ""}\n\n` +
+        `AGENT: ${t.agent_transcript || ""}\n\n` +
+        `Scores: intent=${t.intent_alignment_score} questions=${t.question_asking_score} ` +
+        `tone=${t.tone_score} retention=${t.context_retention_score} avg=${fmt(t.avg_score)}\n` +
+        `Reasoning: ${t.scoring_reasoning || ""}`;
+
+      if (scrollTimeline && timelineCache) {
+        const idx = timelineCache.events.findIndex(
+          (e) => Number(e.turn_number) === Number(t.turn_number) && e.group === "agent"
+        );
+        if (idx >= 0) selectTimelineEvent(idx);
+      }
+    }
+
+    $("btnPlaySession").onclick = async () => {
+      const a = $("sessionAudio");
+      if (!a.src) return;
+      if (a.paused) {
+        try { await a.play(); } catch (e) { alert("Could not play: " + e.message); }
+      } else {
+        a.pause();
+      }
+    };
+
+    $("sessionScrub").addEventListener("pointerdown", () => { scrubbing = true; });
+    $("sessionScrub").addEventListener("pointerup", () => {
+      scrubbing = false;
+      seekSessionToFraction(Number($("sessionScrub").value) / 1000);
+    });
+    $("sessionScrub").addEventListener("change", () => {
+      seekSessionToFraction(Number($("sessionScrub").value) / 1000);
+    });
+    $("sessionScrub").oninput = () => {
+      scrubbing = true;
+      seekSessionToFraction(Number($("sessionScrub").value) / 1000);
+    };
+
+    // Click timeline tracks to seek
+    $("tlRailWrap").addEventListener("click", (ev) => {
+      const track = ev.target.closest(".tl-track");
+      if (!track) return;
+      const rect = track.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const frac = (ev.clientX - rect.left) / rect.width;
+      seekSessionToFraction(frac);
+    });
+
+    window.addEventListener("resize", () => updatePlayhead());
+
+    $("refreshBtn").onclick = loadEvaluations;
+
+    $("deleteEvalBtn").onclick = async () => {
+      if (!selectedEval) return;
+      if (!confirm(`Delete evaluation #${selectedEval}? This removes its turns and timeline from the database.`)) {
+        return;
+      }
+      $("deleteEvalBtn").disabled = true;
+      const res = await fetch(`/api/evaluations/${selectedEval}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "Delete failed");
+        $("deleteEvalBtn").disabled = false;
+        return;
+      }
+      selectedEval = null;
+      const u = new URL(location.href);
+      u.searchParams.delete("eval");
+      history.replaceState({}, "", u);
+      $("runTitle").textContent = "Select a run";
+      $("mTtf").textContent = "—";
+      $("mFtl").textContent = "—";
+      $("mTurns").textContent = "—";
+      $("turnsBody").innerHTML = "";
+      $("detailBox").textContent = "Click a turn to inspect scores and text. Use Play session above for full audio.";
+      clearTimeline();
+      await loadEvaluations();
+    };
+
+    loadEvaluations();
+  </script>
+</body>
+</html>

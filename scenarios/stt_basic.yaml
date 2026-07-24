@@ -1,0 +1,18 @@
+scenario_id: stt_basic_v1
+eval_type: stt
+
+# Provider under test (override with --provider)
+stt_provider: groq
+stt_model: whisper-large-v3-turbo
+
+# Used only to synthesize reference audio from text (not scored)
+reference_tts_provider: groq
+language: en
+
+test_items:
+  - id: greeting
+    text: "Hello, I am looking for better telecom options."
+  - id: competitor
+    text: "I am currently with Vodafone and paying too much."
+  - id: pricing
+    text: "Can you tell me your monthly pricing for small businesses?"

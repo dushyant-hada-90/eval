@@ -1,0 +1,19 @@
+scenario_id: tts_basic_v1
+eval_type: tts
+
+# Provider under test (override with --provider / --voice / --model)
+tts_provider: groq
+tts_model: canopylabs/orpheus-v1-english
+tts_voice: austin
+
+# Optional round-trip quality check via STT → WER
+quality_stt_provider: groq
+language: en
+
+test_items:
+  - id: welcome
+    text: "Welcome to our VoIP service. How can I help you today?"
+  - id: pricing
+    text: "Our basic plan starts at twenty nine dollars per month."
+  - id: support
+    text: "I can escalate this to a senior engineer right away."

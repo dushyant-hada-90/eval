@@ -1,0 +1,146 @@
+scenario_id: sales_pitch_v1
+eval_type: realtime
+agent_name: gemini_realtime
+stt_provider: groq
+tts_provider: groq
+
+# Refined system prompt — adds voice constraints, objection handling, persona routing
+realtime_prompt: |
+  You are a friendly sales representative for a VoIP service. You're calling businesses to understand their telecom needs.
+  
+  CORE OBJECTIVES (in order):
+  1. Understand their current setup (provider, user count, pain points)
+  2. Identify one clear value prop that fits them
+  3. Move toward a follow-up or trial (don't hard-sell)
+  
+  VOICE CONSTRAINTS:
+  - Keep individual responses under 30 seconds (2-3 sentences max in voice calls)
+  - Use natural pauses, not filler ("um", "uh", "like")
+  - Mirror their pace: if they're rushed, speed up; if they're thorough, elaborate slightly
+  - Interrupt respectfully if they go off-topic ("Got it — quick question then...")
+  
+  PERSONA ROUTING:
+  - Neutral/curious: Ask discovery questions freely, pitch gently, offer summary email
+  - Skeptical: Lead with proof/specs, skip fluff, offer trial or SLA docs
+  - Time-pressured: Skip pleasantries, get to price/timeline immediately, confirm follow-up
+  
+  OBJECTION HANDLING:
+  - "Your service isn't better": Ask what "better" means to them specifically
+  - "Coverage concerns": Admit gaps honestly, pivot to SLA/redundancy instead
+  - "Price pushback": Ask budget range first, reframe as cost-per-user
+  
+  TONE: Professional but conversational. You're solving a problem, not reading a script.
+  
+  SUCCESS = confidence meeting + follow-up committed (email, call, trial)
+
+# Refined eval prompt — adds speech quality, sales momentum, voice-specific metrics
+testing_prompt: |
+  Score this agent turn on 6 dimensions. Reasoning: 1 sentence each.
+  
+  **Interaction Quality:**
+  1. intent_capture (1-5): Did they correctly parse what the caller said? (1=missed it, 5=reframed it back)
+  2. response_length (1-5): Was it concise enough for voice? (1=rambled, 3=sweet spot, 5=too brief)
+  3. natural_speech (1-5): Sounds human? No filler words, natural pauses, conversational cadence? (1=robotic, 5=natural)
+  
+  **Sales Effectiveness:**
+  4. questions_quality (1-5): Useful discovery or reframing, not generic? (1=filler question, 5=reveals specific blocker)
+  5. objection_handling (1-5): If they pushed back, did the agent address it or dodge? (1=dodged, 5=validated + pivoted)
+  6. momentum (1-5): Moving toward commitment (email, call, trial)? (1=stalled, 5=clear next step)
+  
+  **Thresholds:**
+  - Avg ≥4.0: Strong turn
+  - Avg 3.0-3.9: Acceptable but needs refinement
+  - Avg <3.0: Flag for revision (vague, too long, didn't listen)
+
+test_variations:
+  - name: neutral
+    persona: |
+      Alex, mid-30s, office manager, 12 people, uses Vodafone. Interested in cheaper/faster service.
+      Not technical, but steady and polite. Will share pain points if asked. Needs to loop in partner.
+      Buys on second call after research. Appreciates summaries and timelines.
+    test_script:
+      - prompt: "Hi, I'm looking for better telecom options."
+        intent: express_need
+      - prompt: "We've got 12 people, all in-office. Mostly Vodafone, but... honestly the support is patchy."
+        intent: provide_context
+      - prompt: "Probably looking at 20-25% cheaper, and faster setup than the 2 months we waited last time."
+        intent: state_constraints
+      - prompt: "Yeah, I'd want to see uptime guarantees. And confirm it works with our legacy PBX until we migrate."
+        intent: ask_technical_questions
+      - prompt: "Okay, email me a one-pager — pricing, SLA, migration steps. I'll review with my director."
+        intent: close_call
+
+  - name: skeptical
+    persona: |
+      Priya, procurement lead, burned by two bad vendor switches. Asks for proof on everything.
+      Compares directly to current setup. Interrupts if you go vague. Short answers preferred.
+      Will only soften if you give concrete, measurable answers. Decides quickly once convinced.
+    test_script:
+      - prompt: "I'm skeptical your service is actually better than what I have."
+        intent: express_doubt
+      - prompt: "Our current provider claims 99.9% uptime. Do you beat that or not?"
+        intent: competitive_pushback
+      - prompt: "And your competitor covers rural sites. Do you? Because I'm not switching if I lose coverage there."
+        intent: demand_specific_proof
+      - prompt: "That's vague. Show me the SLA doc, third-party audit if you have it. No promises yet."
+        intent: request_docs
+      - prompt: "Alright, send me the SLA and case studies for similar-size companies. I'll review."
+        intent: close_call
+
+  - name: time_pressured
+    persona: |
+      Jordan, VP Ops, between meetings. Impatient, wants price/timeline in 60 seconds.
+      Hates discovery questions if they feel redundant. Will hang up if you pitch instead of answering.
+      Respects brevity; will loop in team for deep dive. Quick decider if you respect their time.
+    test_script:
+      - prompt: "Look, I have maybe 90 seconds. What's your pitch?"
+        intent: time_pressure
+      - prompt: "We're with Reliance; 40 users. Main issue is we're paying too much per line."
+        intent: rapid_context
+      - prompt: "I don't need a consultation call; just tell me — can you cut our bill 30% in 30 days?"
+        intent: skip_process
+      - prompt: "Okay, and the setup fee?"
+        intent: ask_price
+      - prompt: "Text me a quote with those numbers. I'll loop in IT and get back to you by EOD."
+        intent: close_call
+
+  - name: edge_case_distracted
+    persona: |
+      Sam, office manager, fielding 3 things at once. Easily distracted, might miss details,
+      apologizes for tangents but needs them. Won't remember if you don't recap. Won't commit without written summary.
+    test_script:
+      - prompt: "Sorry, one sec—okay, what's this about? VoIP?"
+        intent: regain_attention
+      - prompt: "Right, yeah, we've been meaning to... sorry, someone just walked in. We're on Jio, cost is painful, but haven't prioritized it."
+        intent: partial_engagement
+      - prompt: "Can you repeat that? How much would it actually save us per month?"
+        intent: ask_specific_metric
+      - prompt: "That's helpful, but I'm going to need this in writing before I can pitch it internally."
+        intent: demand_docs
+      - prompt: "Perfect. Email me your best-case savings + timeline. I'll loop in my boss."
+        intent: close_call
+
+  - name: edge_case_technical_blocker
+    persona: |
+      Dev ops engineer, skeptical non-buyer but sits in on calls. Asks deep technical questions
+      about integration, API stability, redundancy. Cares about SLA *for APIs*, not just uptime.
+      Can kill a deal if concerns aren't addressed. Respect technical depth.
+    test_script:
+      - prompt: "Before we talk features, does your API support real-time SIP events? We have custom routing."
+        intent: technical_question
+      - prompt: "And what's your redundancy model? Are you relying on a single VoIP gateway?"
+        intent: probe_architecture
+      - prompt: "Okay, but if the gateway goes down, what's our failover window? We need <2 seconds."
+        intent: demand_sla
+      - prompt: "I'll need your technical docs and a call with your engineering team before we commit to a POC."
+        intent: escalate_technical
+      - prompt: "Send those over and I'll review with my team this week."
+        intent: close_call
+
+# Evaluation config for edge cases
+eval_config:
+  voice_quality_focus: true  # Flag STT issues (garbled, misheard intent)
+  objection_count: 1-3       # Expect 1-3 objections per scenario
+  avg_turn_length_seconds: 15-25  # Alert if turns exceed 30s
+  fluency_score: Reject if >2 filler words per response
+  commitment_clarity: Must end with specific next step (email, date, trial)
