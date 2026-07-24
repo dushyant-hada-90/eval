@@ -12,15 +12,10 @@ Evaluate realtime voice agents (and optionally STT/TTS) with:
 ## 1. Clone
 
 ```bash
-git clone <YOUR_REPO_URL> realtime-agents-eval
-cd realtime-agents-eval
+git clone https://github.com/dushyant-hada-90 
 ```
 
-If you already have the folder:
 
-```bash
-cd realtime-agents-eval
-```
 
 ---
 
